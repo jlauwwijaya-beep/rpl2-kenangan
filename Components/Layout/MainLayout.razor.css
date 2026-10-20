@@ -1,0 +1,43 @@
+.page {
+    position: relative;
+    display: flex;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+    min-width: 0;
+}
+
+.top-row {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    background: rgba(246, 241, 228, 0.92);
+    backdrop-filter: blur(10px);
+}
+
+.content {
+    padding-top: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.sidebar {
+    background: var(--paper-2);
+    border-right: 2px solid var(--ink);
+    width: 250px;
+}
+
+@media (max-width: 640.98px) {
+    .sidebar {
+        width: 0;
+        overflow: hidden;
+        border: none;
+    }
+}

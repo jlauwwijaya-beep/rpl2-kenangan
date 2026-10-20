@@ -1,0 +1,314 @@
+@page "/galeri"
+@inject PhotoCatalog Catalog
+@inject CommentStore Comments
+@inject IWebHostEnvironment Env
+
+<PageTitle>Galeri — XII RPL 2</PageTitle>
+
+<div class="galeri-page" tabindex="-1" @ref="_pageRef" @onkeydown="HandleKey">
+    <div class="galeri-head">
+        <div>
+            <h1 class="page-title">Galeri Kenangan</h1>
+            <p class="page-sub">
+                @_visible.Count foto @(SelectedCategory is null ? "dari semua kategori" : $"kategori {SelectedCategory}")
+                · @_totalComments komentar
+            </p>
+        </div>
+        <div class="head-actions">
+            <div class="search-box">
+                <input type="text" placeholder="Cari kategori..." @bind="_search" @bind:event="oninput" />
+            </div>
+            <button class="btn-upload @(_showUpload ? "open" : "")" @onclick='() => _showUpload = !_showUpload'>
+                ＋ Tambah Foto
+            </button>
+        </div>
+    </div>
+
+    @if (_showUpload)
+    {
+        <div class="upload-panel">
+            <div class="upload-panel-head">
+                <b>Upload Foto Kenangan</b>
+                <span>maks 10 MB per file, format jpg/png/gif/webp</span>
+            </div>
+            <div class="upload-row">
+                <InputFile OnChange="OnFilesSelected" multiple class="upload-input" accept="image/*" />
+            </div>
+            <div class="upload-row">
+                <select class="upload-select" @bind="_uploadCategory">
+                    <option value="">— pilih kategori —</option>
+                    @foreach (var c in Catalog.Categories)
+                    {
+                        <option value="@c">@c (@Catalog.CountOf(c))</option>
+                    }
+                    <option value="__new__">＋ kategori baru...</option>
+                </select>
+                @if (_uploadCategory == "__new__")
+                {
+                    <input class="upload-select" placeholder="Nama kategori baru" @bind="_newCategory" />
+                }
+                <button class="btn-upload" disabled="@(_busy || _selectedFiles.Count == 0)" @onclick="UploadAsync">
+                    @(_busy ? $"Mengirim {_doneCount}/{_uploadTotal}..." : $"Upload {_selectedFiles.Count} foto")
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_uploadMessage))
+            {
+                <div class="upload-msg @(_uploadOk ? "ok" : "err")">@_uploadMessage</div>
+            }
+            @if (_selectedFiles.Count > 0 && !_busy)
+            {
+                <div class="upload-preview">
+                    @foreach (var f in _selectedFiles)
+                    {
+                        <span class="preview-chip">@f.Name (@(f.Size / 1024) KB)</span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="chips">
+        <button class="chip @(SelectedCategory is null ? "active" : "")" @onclick='() => Select(null)'>
+            Semua <span class="chip-count">@Catalog.TotalCount</span>
+        </button>
+        @foreach (var cat in Catalog.Categories.Where(string.IsNullOrEmpty(_search) ? _ => true : c => c.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        {
+            <button class="chip @(SelectedCategory == cat ? "active" : "")" @onclick='() => Select(cat)'>
+                @cat <span class="chip-count">@Catalog.CountOf(cat)</span>
+            </button>
+        }
+    </div>
+
+    @if (_visible.Count == 0)
+    {
+        <div class="empty">Belum ada foto di kategori ini.</div>
+    }
+    else
+    {
+        <div class="photo-grid">
+            @for (var i = 0; i < _visible.Count; i++)
+            {
+                var index = i;
+                var cCount = Comments.Count(_visible[index].Key);
+                <button class="photo-cell @(i % 5 == 0 ? "tall" : "")" @onclick='() => Open(index)'>
+                    <img src="@_visible[index].Url" alt="@_visible[index].Category" loading="lazy" />
+                    <span class="photo-tag">@_visible[index].Category</span>
+                    @if (cCount > 0)
+                    {
+                        <span class="comment-badge">@cCount komentar</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@if (_lightboxOpen && _visible.Count > 0)
+{
+    var current = _visible[_current];
+    <div class="lightbox" @onclick="Close">
+        <button class="lb-close" @onclick:stopPropagation="true" @onclick="Close">✕</button>
+        <button class="lb-nav prev" disabled="@(_visible.Count <= 1)" @onclick:stopPropagation="true" @onclick="Prev">‹</button>
+
+        <div class="lb-panel" @onclick:stopPropagation="true">
+            <div class="lb-image">
+                <img src="@current.Url" alt="@current.Category" />
+            </div>
+
+            <div class="lb-comments">
+                <div class="lbc-head">
+                    <span class="lbc-cat">@current.Category</span>
+                    <span class="lbc-counter">@(_current + 1) / @_visible.Count</span>
+                </div>
+
+                <div class="lbc-list">
+                    @if (_currentComments.Count == 0)
+                    {
+                        <div class="lbc-empty">Belum ada komentar. Jadilah yang pertama! ✍️</div>
+                    }
+                    else
+                    {
+                        @foreach (var c in _currentComments)
+                        {
+                            <div class="lbc-item">
+                                <div class="lbc-avatar">@Initial(c.Name)</div>
+                                <div>
+                                    <div class="lbc-meta">
+                                        <b>@c.Name</b>
+                                        <span>@c.At.ToString("dd MMM, HH:mm")</span>
+                                    </div>
+                                    <div class="lbc-text">@c.Text</div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="lbc-form">
+                    <input placeholder="Namamu..." @bind="_commentName" maxlength="30" />
+                    <div class="lbc-form-row">
+                        <input placeholder="Tulis komentar untuk foto ini..." @bind="_commentText" maxlength="300"
+                               @onkeydown="CommentKey" />
+                        <button class="btn-send" disabled="@string.IsNullOrWhiteSpace(_commentText)" @onclick="SendComment">Kirim</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="lb-nav next" disabled="@(_visible.Count <= 1)" @onclick:stopPropagation="true" @onclick="Next">›</button>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "kategori")]
+    public string? SelectedCategory { get; set; }
+
+    private List<PhotoItem> _visible = new();
+    private string _search = "";
+    private int _current;
+    private bool _lightboxOpen;
+    private ElementReference _pageRef;
+
+    private List<PhotoComment> _currentComments = new();
+    private string _commentName = "";
+    private string _commentText = "";
+    private int _totalComments;
+
+    private bool _showUpload;
+    private bool _busy;
+    private bool _uploadOk;
+    private string _uploadMessage = "";
+    private IReadOnlyList<IBrowserFile> _selectedFiles = Array.Empty<IBrowserFile>();
+    private string _uploadCategory = "";
+    private string _newCategory = "";
+    private int _uploadTotal;
+    private int _doneCount;
+
+    protected override void OnParametersSet()
+    {
+        _visible = Catalog.ByCategory(SelectedCategory);
+        _current = 0;
+        _totalComments = Catalog.Photos.Sum(p => Comments.Count(p.Key));
+    }
+
+    private void Select(string? category)
+    {
+        SelectedCategory = category;
+        _visible = Catalog.ByCategory(category);
+        _current = 0;
+    }
+
+    private async Task Open(int index)
+    {
+        _current = index;
+        _lightboxOpen = true;
+        LoadComments();
+        await _pageRef.FocusAsync();
+    }
+
+    private void LoadComments() => _currentComments = Comments.Get(_visible[_current].Key);
+
+    private void Close() => _lightboxOpen = false;
+
+    private void Next()
+    {
+        _current = (_current + 1) % _visible.Count;
+        LoadComments();
+    }
+
+    private void Prev()
+    {
+        _current = (_current - 1 + _visible.Count) % _visible.Count;
+        LoadComments();
+    }
+
+    private Task HandleKey(KeyboardEventArgs e)
+    {
+        if (!_lightboxOpen) return Task.CompletedTask;
+        if (e.Key == "Escape") Close();
+        else if (e.Key == "ArrowRight") Next();
+        else if (e.Key == "ArrowLeft") Prev();
+        return Task.CompletedTask;
+    }
+
+    private void SendComment()
+    {
+        if (string.IsNullOrWhiteSpace(_commentText)) return;
+        Comments.Add(_visible[_current].Key, _commentName, _commentText);
+        _commentText = "";
+        LoadComments();
+        _totalComments = Catalog.Photos.Sum(p => Comments.Count(p.Key));
+    }
+
+    private Task CommentKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_commentText)) SendComment();
+        return Task.CompletedTask;
+    }
+
+    private void OnFilesSelected(InputFileChangeEventArgs e) => _selectedFiles = e.GetMultipleFiles(30);
+
+    private async Task UploadAsync()
+    {
+        var category = _uploadCategory == "__new__" ? _newCategory.Trim() : _uploadCategory;
+        category = SanitizeCategory(category);
+        if (string.IsNullOrEmpty(category) || _selectedFiles.Count == 0)
+        {
+            _uploadOk = false;
+            _uploadMessage = "Pilih kategori (atau bikin baru) dulu ya.";
+            return;
+        }
+
+        _busy = true;
+        _uploadTotal = _selectedFiles.Count;
+        _doneCount = 0;
+        _uploadMessage = "";
+
+        try
+        {
+            var dir = Path.Combine(Env.WebRootPath, "photos", category);
+            Directory.CreateDirectory(dir);
+
+            foreach (var file in _selectedFiles)
+            {
+                var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+                if (ext is not (".jpg" or ".jpeg" or ".png" or ".gif" or ".webp"))
+                    continue;
+
+                var safeName = $"{Guid.NewGuid()}{ext}";
+                await using var stream = File.Create(Path.Combine(dir, safeName));
+                await file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(stream);
+                _doneCount++;
+            }
+
+            Catalog.Rescan();
+
+            _uploadOk = true;
+            _uploadMessage = $"Berhasil upload {_doneCount} foto ke kategori \"{category}\"! 🎉";
+            _selectedFiles = Array.Empty<IBrowserFile>();
+            _uploadCategory = "";
+            _newCategory = "";
+            _visible = Catalog.ByCategory(SelectedCategory);
+        }
+        catch (Exception ex)
+        {
+            _uploadOk = false;
+            _uploadMessage = $"Gagal: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Initial(string name) =>
+        string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[..1].ToUpper();
+
+    private static string SanitizeCategory(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(value.Trim().Where(c => !invalid.Contains(c)).ToArray());
+        return cleaned.Replace("..", "").Trim();
+    }
+}

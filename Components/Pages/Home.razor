@@ -1,0 +1,136 @@
+﻿@page "/"
+@inject PhotoCatalog Catalog
+@inject CommentStore Comments
+@inject IConfiguration Config
+
+<PageTitle>Beranda — Kenangan XII RPL 2</PageTitle>
+
+<section class="hero">
+    @if (_heroBg is not null)
+    {
+        <img src="@_heroBg" class="hero-bg" alt="" />
+    }
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+        <span class="hero-badge">KELAS XII · RPL 2 · DIGITAL YEARBOOK</span>
+        <h1>Kenangan kita,<br />selamanya.</h1>
+        <p>@Catalog.TotalCount momen, @Catalog.Categories.Count kategori, satu kelas yang gak akan tergantikan. Dari kelas, villa, sampai hari ijazah — semuanya ada di sini.</p>
+        <div class="hero-actions">
+            <a href="galeri" class="btn-hero primary">Lihat Galeri</a>
+            <a href="#kategori" class="btn-hero ghost">Jelajahi Kategori ↓</a>
+        </div>
+        <div class="hero-chips">
+            <span class="hero-chip">XII RPL 2</span>
+            <span class="hero-chip">@_totalComments komentar</span>
+            <span class="hero-chip">Sampai jumpa di reuni</span>
+        </div>
+    </div>
+</section>
+
+<section class="countdown-section">
+    <div class="countdown-card">
+        <span class="section-kicker">@_title</span>
+        <div class="countdown-grid">
+            <div class="cd-box"><span>@_remaining.Days</span><small>hari</small></div>
+            <div class="cd-box"><span>@_remaining.Hours</span><small>jam</small></div>
+            <div class="cd-box"><span>@_remaining.Minutes</span><small>menit</small></div>
+            <div class="cd-box"><span>@_remaining.Seconds</span><small>detik</small></div>
+        </div>
+        <div class="cd-note">Jangan lupa hari terakhir kita bersama.</div>
+    </div>
+</section>
+
+<section class="stats-row">
+    <div class="stat s1"><b>@Catalog.TotalCount</b><span>foto kenangan</span></div>
+    <div class="stat s2"><b>@Catalog.Categories.Count</b><span>kategori momen</span></div>
+    <div class="stat s3"><b>@_totalComments</b><span>komentar warga</span></div>
+    <div class="stat s4"><b>1</b><span>kelas tak tergantikan</span></div>
+</section>
+
+<section id="kategori" class="section">
+    <div class="section-head">
+        <div>
+            <span class="section-kicker">KATEGORI</span>
+            <h2 class="section-title">Momen per kategori</h2>
+            <p class="section-sub">Klik untuk langsung terjun ke galerinya.</p>
+        </div>
+        <a href="galeri" class="btn-hero ghost">Semua foto →</a>
+    </div>
+    <div class="category-grid">
+        @foreach (var cat in Catalog.Categories)
+        {
+            <a class="category-card" href="@($"galeri?kategori={Uri.EscapeDataString(cat)}")">
+                <span class="cat-name">@cat</span>
+                <span class="cat-count">@Catalog.CountOf(cat) foto</span>
+                <span class="cat-bar"><i style="width:@BarWidth(cat)%"></i></span>
+            </a>
+        }
+    </div>
+</section>
+
+<section class="section">
+    <div class="section-head">
+        <div>
+            <span class="section-kicker">SOROTAN</span>
+            <h2 class="section-title">Pilihan momen kita</h2>
+            <p class="section-sub">Beberapa bingkai yang gak boleh dilupakan.</p>
+        </div>
+        <a href="galeri" class="btn-hero ghost">Buka galeri →</a>
+    </div>
+    <div class="highlight-strip">
+        @for (var i = 0; i < _highlights.Count; i++)
+        {
+            var p = _highlights[i];
+            <a href="galeri" class="highlight-item">
+                <img src="@p.Url" alt="@p.Category" loading="lazy" />
+                <span class="hl-tag">@p.Category</span>
+            </a>
+        }
+    </div>
+</section>
+
+<section class="quote-banner">
+    <div class="quote-card">
+        <span class="quote-mark">"</span>
+        <p>Kita datang sebagai murid, pulang sebagai keluarga. Terima kasih untuk setiap tawa, tugas yang mepet, dan guru yang sabar ngadepin kita.</p>
+        <b>— XII RPL 2</b>
+    </div>
+</section>
+
+@code {
+    private string? _heroBg;
+    private List<PhotoItem> _highlights = new();
+    private string _title = "";
+    private DateTime _target;
+    private TimeSpan _remaining;
+    private int _totalComments;
+
+    protected override void OnInitialized()
+    {
+        _title = Config["Anniversary:Title"] ?? "1 year dari sekarang";
+        _target = DateTime.Now.AddYears(1);
+
+        _heroBg = Catalog.Photos.FirstOrDefault()?.Url;
+        _highlights = Catalog.Photos.Take(9).ToList();
+        _totalComments = Catalog.Photos.Sum(p => Comments.Count(p.Key));
+
+        _ = CountdownLoop();
+    }
+
+    private int BarWidth(string category)
+    {
+        var max = Catalog.Categories.Max(c => Catalog.CountOf(c));
+        return max == 0 ? 0 : Math.Max(8, Catalog.CountOf(category) * 100 / max);
+    }
+
+    private async Task CountdownLoop()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        while (await timer.WaitForNextTickAsync())
+        {
+            _remaining = _target - DateTime.Now;
+            if (_remaining < TimeSpan.Zero) _remaining = TimeSpan.Zero;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

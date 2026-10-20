@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: rpl2-kenangan
+    runtime: dot
+    plan: free
+    buildCommand: dotnet publish -c Release -o renderoutput
+    startCommand: "ASPNETCORE_URLS=http://0.0.0.0:$PORT dotnet renderoutput/RPL2Kenangan.dll"
+    envVars:
+      - key: DOTNET_VERSION
+        value: 8.0.x
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+    autoDeploy: true

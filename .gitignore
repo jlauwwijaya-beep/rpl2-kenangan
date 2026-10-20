@@ -1,0 +1,8 @@
+bin/
+obj/
+renderoutput/
+App_Data/
+.vs/
+*.user
+*.suo
+nohup.out
