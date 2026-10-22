@@ -1,0 +1,121 @@
+@inject IJSRuntime JS
+
+<div class="frame-container">
+    <div class="frame-editor">
+        <div class="fe-controls">
+            <label>Frame Style:</label>
+            <select value="@_frameStyle" @onchange="e => OnFrameStyleChanged(e)">
+                <option value="minimal">Minimal Border</option>
+                <option value="vintage">Vintage</option>
+                <option value="modern">Modern</option>
+                <option value="neon">Neon Glow</option>
+                <option value="shadow">Shadow</option>
+                <option value="polaroid-style">Polaroid Style</option>
+            </select>
+
+            <label>Frame Color:</label>
+            <input type="color" value="@_frameColor" @onchange="e => OnFrameColorChanged(e)" />
+
+            <label>Border Width:</label>
+            <input type="range" min="5" max="50" value="@_borderWidth" @onchange="e => OnBorderWidthChanged(e)" />
+            <span>@_borderWidth px</span>
+
+            <label>Caption:</label>
+            <input type="text" placeholder="Tambah caption..." value="@_caption" @onchange="e => OnCaptionChanged(e)" maxlength="50" />
+
+            <button class="btn-download" @onclick="DownloadFrame">📥 Download</button>
+        </div>
+
+        <div class="fe-photo-select">
+            <p>Pilih 1 foto:</p>
+            <div class="photo-grid-small">
+                @foreach (var photo in Photos.Take(12))
+                {
+                    var isSelected = _selectedPhoto == photo.Key;
+                    <button class="photo-thumb @(isSelected ? "selected" : "")" 
+                            @onclick='() => SelectPhoto(photo.Key)'
+                            title="@photo.FileName">
+                        <img src="@photo.Url" alt="@photo.Category" />
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="fe-preview">
+            <canvas @ref="_canvasRef" width="600" height="700"></canvas>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<PhotoItem> Photos { get; set; } = new();
+
+    private string _frameStyle = "minimal";
+    private string _frameColor = "#333333";
+    private int _borderWidth = 15;
+    private string _caption = "";
+    private string _selectedPhoto = "";
+    private ElementReference _canvasRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selectedPhoto = Photos.FirstOrDefault()?.Key ?? "";
+            await UpdatePreview();
+        }
+    }
+
+    private void SelectPhoto(string key)
+    {
+        _selectedPhoto = key;
+        _ = UpdatePreview();
+    }
+
+    private async Task OnFrameStyleChanged(ChangeEventArgs e)
+    {
+        _frameStyle = e.Value?.ToString() ?? "minimal";
+        await UpdatePreview();
+    }
+
+    private async Task OnFrameColorChanged(ChangeEventArgs e)
+    {
+        _frameColor = e.Value?.ToString() ?? "#333333";
+        await UpdatePreview();
+    }
+
+    private async Task OnBorderWidthChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            _borderWidth = val;
+            await UpdatePreview();
+        }
+    }
+
+    private async Task OnCaptionChanged(ChangeEventArgs e)
+    {
+        _caption = e.Value?.ToString() ?? "";
+        await UpdatePreview();
+    }
+
+    private async Task UpdatePreview()
+    {
+        if (string.IsNullOrEmpty(_selectedPhoto)) return;
+        
+        var photoUrl = Photos.FirstOrDefault(p => p.Key == _selectedPhoto)?.Url ?? "";
+        if (string.IsNullOrEmpty(photoUrl)) return;
+
+        await JS.InvokeVoidAsync("drawFrame", _canvasRef, photoUrl,
+            _frameStyle, _frameColor, _borderWidth, _caption);
+    }
+
+    private async Task DownloadFrame()
+    {
+        if (string.IsNullOrEmpty(_selectedPhoto)) return;
+        
+        var filename = $"frame-{DateTime.Now:yyyyMMdd-HHmmss}.png";
+        await JS.InvokeVoidAsync("downloadCanvas", _canvasRef, filename);
+    }
+}

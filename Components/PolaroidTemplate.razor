@@ -1,0 +1,121 @@
+@inject IJSRuntime JS
+
+<div class="polaroid-container">
+    <div class="polaroid-editor">
+        <div class="pe-controls">
+            <label>Text Style:</label>
+            <select value="@_textStyle" @onchange="e => OnTextStyleChanged(e)">
+                <option value="handwritten">Handwritten</option>
+                <option value="typewriter">Typewriter</option>
+                <option value="marker">Marker</option>
+                <option value="casual">Casual</option>
+            </select>
+
+            <label>Bottom Text:</label>
+            <input type="text" placeholder="Tulis caption..." value="@_bottomText" @onchange="e => OnBottomTextChanged(e)" maxlength="40" />
+
+            <label>Date Overlay:</label>
+            <input type="checkbox" checked="@_showDate" @onchange="e => OnShowDateChanged(e)" />
+            <span>@(DateTime.Now.ToString("dd · MM · yy"))</span>
+
+            <label>Rotation:</label>
+            <input type="range" min="-5" max="5" step="0.5" value="@_rotation" @onchange="e => OnRotationChanged(e)" />
+            <span>@_rotation°</span>
+
+            <button class="btn-download" @onclick="DownloadPolaroid">📥 Download</button>
+        </div>
+
+        <div class="pe-photo-select">
+            <p>Pilih 1 foto:</p>
+            <div class="photo-grid-small">
+                @foreach (var photo in Photos.Take(12))
+                {
+                    var isSelected = _selectedPhoto == photo.Key;
+                    <button class="photo-thumb @(isSelected ? "selected" : "")" 
+                            @onclick='() => SelectPhoto(photo.Key)'
+                            title="@photo.FileName">
+                        <img src="@photo.Url" alt="@photo.Category" />
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="pe-preview">
+            <canvas @ref="_canvasRef" width="500" height="650"></canvas>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<PhotoItem> Photos { get; set; } = new();
+
+    private string _textStyle = "handwritten";
+    private string _bottomText = "XII RPL 2";
+    private bool _showDate = true;
+    private double _rotation = 0;
+    private string _selectedPhoto = "";
+    private ElementReference _canvasRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selectedPhoto = Photos.FirstOrDefault()?.Key ?? "";
+            await UpdatePreview();
+        }
+    }
+
+    private void SelectPhoto(string key)
+    {
+        _selectedPhoto = key;
+        _ = UpdatePreview();
+    }
+
+    private async Task OnTextStyleChanged(ChangeEventArgs e)
+    {
+        _textStyle = e.Value?.ToString() ?? "handwritten";
+        await UpdatePreview();
+    }
+
+    private async Task OnBottomTextChanged(ChangeEventArgs e)
+    {
+        _bottomText = e.Value?.ToString() ?? "XII RPL 2";
+        await UpdatePreview();
+    }
+
+    private async Task OnShowDateChanged(ChangeEventArgs e)
+    {
+        _showDate = (bool)(e.Value ?? false);
+        await UpdatePreview();
+    }
+
+    private async Task OnRotationChanged(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), out var val))
+        {
+            _rotation = val;
+            await UpdatePreview();
+        }
+    }
+
+    private async Task UpdatePreview()
+    {
+        if (string.IsNullOrEmpty(_selectedPhoto)) return;
+        
+        var photoUrl = Photos.FirstOrDefault(p => p.Key == _selectedPhoto)?.Url ?? "";
+        if (string.IsNullOrEmpty(photoUrl)) return;
+
+        var dateText = _showDate ? DateTime.Now.ToString("dd · MM · yy") : "";
+        await JS.InvokeVoidAsync("drawPolaroid", _canvasRef, photoUrl,
+            _bottomText, dateText, _textStyle, _rotation);
+    }
+
+    private async Task DownloadPolaroid()
+    {
+        if (string.IsNullOrEmpty(_selectedPhoto)) return;
+        
+        var filename = $"polaroid-{DateTime.Now:yyyyMMdd-HHmmss}.png";
+        await JS.InvokeVoidAsync("downloadCanvas", _canvasRef, filename);
+    }
+}

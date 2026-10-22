@@ -1,0 +1,60 @@
+@page "/template"
+@inject PhotoCatalog Catalog
+@inject IJSRuntime JS
+
+<PageTitle>Template Maker — XII RPL 2</PageTitle>
+
+<div class="template-page">
+    <div class="template-head">
+        <div>
+            <h1 class="page-title">Template Maker</h1>
+            <p class="page-sub">Bikin foto keren dengan template pilihan</p>
+        </div>
+    </div>
+
+    <div class="template-selector">
+        <button class="template-card @(_selectedTemplate == "collage" ? "active" : "")" 
+                @onclick='() => SelectTemplate("collage")'>
+            <span class="tc-icon">🎨</span>
+            <span class="tc-name">Collage Maker</span>
+            <span class="tc-desc">Grid multi-foto</span>
+        </button>
+        <button class="template-card @(_selectedTemplate == "frame" ? "active" : "")" 
+                @onclick='() => SelectTemplate("frame")'>
+            <span class="tc-icon">🖼️</span>
+            <span class="tc-name">Photo Frame</span>
+            <span class="tc-desc">Border & frame</span>
+        </button>
+        <button class="template-card @(_selectedTemplate == "polaroid" ? "active" : "")" 
+                @onclick='() => SelectTemplate("polaroid")'>
+            <span class="tc-icon">📷</span>
+            <span class="tc-name">Polaroid Effect</span>
+            <span class="tc-desc">Instant cam style</span>
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_selectedTemplate))
+    {
+        @if (_selectedTemplate == "collage")
+        {
+            <CollageTemplate Photos="Catalog.Photos.ToList()" />
+        }
+        else if (_selectedTemplate == "frame")
+        {
+            <FrameTemplate Photos="Catalog.Photos.ToList()" />
+        }
+        else if (_selectedTemplate == "polaroid")
+        {
+            <PolaroidTemplate Photos="Catalog.Photos.ToList()" />
+        }
+    }
+</div>
+
+@code {
+    private string _selectedTemplate = "";
+
+    private void SelectTemplate(string template)
+    {
+        _selectedTemplate = template;
+    }
+}

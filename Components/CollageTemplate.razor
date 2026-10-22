@@ -1,0 +1,118 @@
+@inject IJSRuntime JS
+
+<div class="collage-container">
+    <div class="collage-editor">
+        <div class="ce-controls">
+            <label>Layout:</label>
+            <select value="@_layout" @onchange="e => OnLayoutChanged(e)">
+                <option value="2x2">2x2 Grid</option>
+                <option value="3x3">3x3 Grid</option>
+                <option value="2x3">2x3 Grid</option>
+                <option value="4x1">4x1 Strip</option>
+                <option value="1x4">1x4 Strip</option>
+                <option value="asymmetric">Asymmetric</option>
+            </select>
+
+            <label>Background:</label>
+            <input type="color" value="@_bgColor" @onchange="e => OnBgColorChanged(e)" />
+
+            <label>Padding:</label>
+            <input type="range" min="0" max="20" value="@_padding" @onchange="e => OnPaddingChanged(e)" />
+            <span>@_padding px</span>
+
+            <button class="btn-download" @onclick="DownloadCollage">📥 Download</button>
+        </div>
+
+        <div class="ce-photo-select">
+            <p>Pilih foto (klik untuk toggle):</p>
+            <div class="photo-chip-list">
+                @foreach (var photo in Photos)
+                {
+                    var isSelected = _selectedPhotos.Contains(photo.Key);
+                    <button class="photo-chip @(isSelected ? "selected" : "")" 
+                            @onclick='() => TogglePhoto(photo.Key)'
+                            title="@photo.FileName">
+                        <img src="@photo.Url" alt="@photo.Category" />
+                        @if (isSelected)
+                        {
+                            <span class="chip-check">✓</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div class="ce-preview">
+            <canvas @ref="_canvasRef" width="600" height="600"></canvas>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<PhotoItem> Photos { get; set; } = new();
+
+    private string _layout = "2x2";
+    private string _bgColor = "#ffffff";
+    private int _padding = 5;
+    private List<string> _selectedPhotos = new();
+    private ElementReference _canvasRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _selectedPhotos = Photos.Take(4).Select(p => p.Key).ToList();
+            await UpdatePreview();
+        }
+    }
+
+    private void TogglePhoto(string key)
+    {
+        if (_selectedPhotos.Contains(key))
+            _selectedPhotos.Remove(key);
+        else
+            _selectedPhotos.Add(key);
+        
+        _ = UpdatePreview();
+    }
+
+    private async Task OnLayoutChanged(ChangeEventArgs e)
+    {
+        _layout = e.Value?.ToString() ?? "2x2";
+        await UpdatePreview();
+    }
+
+    private async Task OnBgColorChanged(ChangeEventArgs e)
+    {
+        _bgColor = e.Value?.ToString() ?? "#ffffff";
+        await UpdatePreview();
+    }
+
+    private async Task OnPaddingChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            _padding = val;
+            await UpdatePreview();
+        }
+    }
+
+    private async Task UpdatePreview()
+    {
+        if (_selectedPhotos.Count == 0) return;
+        
+        await JS.InvokeVoidAsync("drawCollage", _canvasRef, 
+            Photos.Where(p => _selectedPhotos.Contains(p.Key)).Select(p => p.Url).ToList(),
+            _layout, _bgColor, _padding);
+    }
+
+    private async Task DownloadCollage()
+    {
+        if (_selectedPhotos.Count == 0) return;
+        
+        var filename = $"collage-{DateTime.Now:yyyyMMdd-HHmmss}.png";
+        await JS.InvokeVoidAsync("downloadCanvas", _canvasRef, filename);
+    }
+}
+
